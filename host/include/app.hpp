@@ -87,11 +87,11 @@ private:
     std::optional<TrackingTarget> tracked_target_;
     std::ofstream save_json_stream_;
 
-    std::string latest_sender_ = "无";
-    std::string status_line_ = "等待 UDP 数据包";
-    std::string mouse_status_ = "DLL 相对移动";
-    std::string ffmpeg_sender_status_ = "已禁用";
-    std::string save_json_status_ = "关闭";
+    std::string latest_sender_ = "None";
+    std::string status_line_ = "Waiting for UDP packets";
+    std::string mouse_status_ = "Relative DLL move";
+    std::string ffmpeg_sender_status_ = "Disabled";
+    std::string save_json_status_ = "Off";
     std::string hotkey_status_ = "Q";
     std::chrono::steady_clock::time_point last_packet_at_ = {};
     std::chrono::steady_clock::time_point lost_since_ = {};

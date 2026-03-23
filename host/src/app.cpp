@@ -9,17 +9,21 @@
 #include <algorithm>
 #include <cmath>
 #include <cstdint>
+#include <filesystem>
 #include <iomanip>
 #include <limits>
 #include <sstream>
 #include <string>
+#include <system_error>
 #include <utility>
+#include <vector>
 
 namespace
 {
 
 using json = nlohmann::json;
 using Clock = std::chrono::steady_clock;
+namespace fs = std::filesystem;
 
 constexpr char kWindowClassName[] = "RemoteBoxReceiverWindowClass";
 constexpr char kWindowTitle[] = "remote_box_receiver";
@@ -39,15 +43,15 @@ const char* TrackerStateToString(const TrackerState state)
     switch (state)
     {
     case TrackerState::kIdle:
-        return "空闲";
+        return "Idle";
     case TrackerState::kCandidate:
-        return "候选";
+        return "Candidate";
     case TrackerState::kTracking:
-        return "跟踪";
+        return "Tracking";
     case TrackerState::kLost:
-        return "丢失";
+        return "Lost";
     default:
-        return "未知";
+        return "Unknown";
     }
 }
 
@@ -93,6 +97,346 @@ std::wstring NarrowToWide(const std::string& text)
     MultiByteToWideChar(CP_ACP, 0, text.c_str(), -1, result.data(), required_size);
     result.pop_back();
     return result;
+}
+
+std::string WideToUtf8(const std::wstring& text)
+{
+    if (text.empty())
+    {
+        return {};
+    }
+
+    const int required_size = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, nullptr, 0, nullptr, nullptr);
+    if (required_size <= 1)
+    {
+        return {};
+    }
+
+    std::string result(static_cast<std::size_t>(required_size), '\0');
+    WideCharToMultiByte(CP_UTF8, 0, text.c_str(), -1, result.data(), required_size, nullptr, nullptr);
+    result.pop_back();
+    return result;
+}
+
+std::string PathToUtf8(const fs::path& path)
+{
+    return WideToUtf8(path.native());
+}
+
+fs::path GetExecutablePath()
+{
+    std::vector<wchar_t> buffer(MAX_PATH, L'\0');
+
+    for (;;)
+    {
+        const DWORD written =
+            GetModuleFileNameW(nullptr, buffer.data(), static_cast<DWORD>(buffer.size()));
+        if (written == 0)
+        {
+            return {};
+        }
+        if (written < buffer.size() - 1)
+        {
+            return fs::path(std::wstring(buffer.data(), written));
+        }
+
+        buffer.resize(buffer.size() * 2, L'\0');
+    }
+}
+
+fs::path GetExecutableDir()
+{
+    const fs::path exe_path = GetExecutablePath();
+    return exe_path.empty() ? fs::path{} : exe_path.parent_path();
+}
+
+std::optional<fs::path> SearchExecutableInPath(const std::wstring& file_name)
+{
+    const DWORD required_size = SearchPathW(nullptr, file_name.c_str(), nullptr, 0, nullptr, nullptr);
+    if (required_size == 0)
+    {
+        return std::nullopt;
+    }
+
+    std::wstring buffer(static_cast<std::size_t>(required_size), L'\0');
+    const DWORD written = SearchPathW(
+        nullptr,
+        file_name.c_str(),
+        nullptr,
+        required_size,
+        buffer.data(),
+        nullptr);
+    if (written == 0 || written >= required_size)
+    {
+        return std::nullopt;
+    }
+
+    buffer.resize(written);
+    return fs::path(buffer);
+}
+
+std::optional<fs::path> GetLocalAppDataPath()
+{
+    const DWORD required_size = GetEnvironmentVariableW(L"LOCALAPPDATA", nullptr, 0);
+    if (required_size == 0)
+    {
+        return std::nullopt;
+    }
+
+    std::wstring buffer(static_cast<std::size_t>(required_size), L'\0');
+    const DWORD written = GetEnvironmentVariableW(L"LOCALAPPDATA", buffer.data(), required_size);
+    if (written == 0 || written >= required_size)
+    {
+        return std::nullopt;
+    }
+
+    buffer.resize(written);
+    return fs::path(buffer);
+}
+
+void AppendUniqueCandidate(std::vector<fs::path>& candidates, const fs::path& candidate)
+{
+    if (candidate.empty())
+    {
+        return;
+    }
+
+    std::error_code error_code;
+    fs::path normalized = candidate.lexically_normal();
+    if (!normalized.is_absolute())
+    {
+        normalized = fs::absolute(normalized, error_code);
+        if (error_code)
+        {
+            normalized = candidate.lexically_normal();
+        }
+    }
+
+    if (std::find(candidates.begin(), candidates.end(), normalized) == candidates.end())
+    {
+        candidates.push_back(std::move(normalized));
+    }
+}
+
+void AppendWingetFfmpegCandidates(std::vector<fs::path>& candidates)
+{
+    const auto local_appdata = GetLocalAppDataPath();
+    if (!local_appdata.has_value())
+    {
+        return;
+    }
+
+    AppendUniqueCandidate(candidates, *local_appdata / "Microsoft" / "WinGet" / "Links" / "ffmpeg.exe");
+
+    const fs::path packages_dir = *local_appdata / "Microsoft" / "WinGet" / "Packages";
+    std::error_code error_code;
+    if (!fs::is_directory(packages_dir, error_code))
+    {
+        return;
+    }
+
+    const auto options = fs::directory_options::skip_permission_denied;
+    for (const fs::directory_entry& package_entry : fs::directory_iterator(packages_dir, options, error_code))
+    {
+        if (error_code)
+        {
+            error_code.clear();
+            continue;
+        }
+        if (!package_entry.is_directory(error_code))
+        {
+            error_code.clear();
+            continue;
+        }
+
+        const std::wstring package_name = package_entry.path().filename().native();
+        if (package_name.rfind(L"Gyan.FFmpeg", 0) != 0)
+        {
+            continue;
+        }
+
+        AppendUniqueCandidate(candidates, package_entry.path() / "ffmpeg.exe");
+        AppendUniqueCandidate(candidates, package_entry.path() / "bin" / "ffmpeg.exe");
+
+        for (const fs::directory_entry& child_entry :
+             fs::directory_iterator(package_entry.path(), options, error_code))
+        {
+            if (error_code)
+            {
+                error_code.clear();
+                continue;
+            }
+            if (!child_entry.is_directory(error_code))
+            {
+                error_code.clear();
+                continue;
+            }
+
+            AppendUniqueCandidate(candidates, child_entry.path() / "ffmpeg.exe");
+            AppendUniqueCandidate(candidates, child_entry.path() / "bin" / "ffmpeg.exe");
+        }
+    }
+}
+
+void AppendExecutableFromChildDirectories(
+    std::vector<fs::path>& candidates,
+    const fs::path& base_dir,
+    const fs::path& relative_executable_path)
+{
+    std::error_code error_code;
+    if (!fs::is_directory(base_dir, error_code))
+    {
+        return;
+    }
+
+    const auto options = fs::directory_options::skip_permission_denied;
+    for (const fs::directory_entry& child_entry : fs::directory_iterator(base_dir, options, error_code))
+    {
+        if (error_code)
+        {
+            error_code.clear();
+            continue;
+        }
+        if (!child_entry.is_directory(error_code))
+        {
+            error_code.clear();
+            continue;
+        }
+
+        AppendUniqueCandidate(candidates, child_entry.path() / relative_executable_path);
+    }
+}
+
+std::vector<fs::path> BuildFfmpegCandidatePaths(const std::string& configured_path)
+{
+    std::vector<fs::path> candidates;
+    const fs::path exe_dir = GetExecutableDir();
+    std::error_code error_code;
+    const fs::path current_dir = fs::current_path(error_code);
+
+    if (!configured_path.empty())
+    {
+        const fs::path configured_fs_path(configured_path);
+        AppendUniqueCandidate(candidates, configured_fs_path);
+        if (!configured_fs_path.is_absolute())
+        {
+            if (!current_dir.empty())
+            {
+                AppendUniqueCandidate(candidates, current_dir / configured_fs_path);
+            }
+            if (!exe_dir.empty())
+            {
+                AppendUniqueCandidate(candidates, exe_dir / configured_fs_path);
+            }
+        }
+
+        const auto from_path = SearchExecutableInPath(NarrowToWide(configured_path));
+        if (from_path.has_value())
+        {
+            AppendUniqueCandidate(candidates, *from_path);
+        }
+        return candidates;
+    }
+
+    const auto from_path = SearchExecutableInPath(L"ffmpeg.exe");
+    if (from_path.has_value())
+    {
+        AppendUniqueCandidate(candidates, *from_path);
+    }
+
+    if (!exe_dir.empty())
+    {
+        AppendUniqueCandidate(candidates, exe_dir / "ffmpeg.exe");
+        AppendUniqueCandidate(candidates, exe_dir / "runtime" / "ffmpeg.exe");
+        AppendUniqueCandidate(candidates, exe_dir / ".." / "runtime" / "ffmpeg.exe");
+        AppendUniqueCandidate(candidates, exe_dir / ".." / ".." / "runtime" / "ffmpeg.exe");
+    }
+
+    if (!current_dir.empty())
+    {
+        AppendUniqueCandidate(candidates, current_dir / "ffmpeg.exe");
+        AppendUniqueCandidate(candidates, current_dir / "runtime" / "ffmpeg.exe");
+        AppendUniqueCandidate(candidates, current_dir / "host" / "runtime" / "ffmpeg.exe");
+    }
+
+    AppendWingetFfmpegCandidates(candidates);
+    AppendExecutableFromChildDirectories(candidates, "C:\\JianyingPro", "ffmpeg.exe");
+    AppendExecutableFromChildDirectories(candidates, "D:\\JianyingPro", "ffmpeg.exe");
+    return candidates;
+}
+
+std::optional<fs::path> ResolveExistingFilePath(const std::vector<fs::path>& candidates)
+{
+    std::error_code error_code;
+    for (const fs::path& candidate : candidates)
+    {
+        if (fs::is_regular_file(candidate, error_code))
+        {
+            return candidate;
+        }
+        error_code.clear();
+    }
+
+    return std::nullopt;
+}
+
+std::string BuildFfmpegResolutionErrorMessage(
+    const std::string& configured_path,
+    const std::vector<fs::path>& candidates)
+{
+    std::ostringstream oss;
+    if (!configured_path.empty())
+    {
+        oss << "未找到 ffmpeg 路径: " << configured_path;
+    }
+    else
+    {
+        oss << "未找到 ffmpeg.exe; 请用 --ffmpeg_path 指定路径";
+    }
+
+    if (!candidates.empty())
+    {
+        oss << "; 已检查路径:";
+        const std::size_t limit = std::min<std::size_t>(candidates.size(), 6);
+        for (std::size_t i = 0; i < limit; ++i)
+        {
+            oss << "\n  - " << PathToUtf8(candidates[i]);
+        }
+    }
+
+    return oss.str();
+}
+
+std::optional<std::string> ResolveConfiguredFfmpegPath(
+    const std::string& configured_path,
+    std::string& error_message)
+{
+    const std::vector<fs::path> candidates = BuildFfmpegCandidatePaths(configured_path);
+    const auto resolved = ResolveExistingFilePath(candidates);
+    if (!resolved.has_value())
+    {
+        error_message = BuildFfmpegResolutionErrorMessage(configured_path, candidates);
+        return std::nullopt;
+    }
+
+    return PathToUtf8(*resolved);
+}
+
+fs::path ResolveOutputFilePath(const std::string& configured_path)
+{
+    fs::path output_path = configured_path.empty() ? fs::path("saved_udp_packets.jsonl") : fs::path(configured_path);
+    if (output_path.is_absolute())
+    {
+        return output_path.lexically_normal();
+    }
+
+    const fs::path exe_dir = GetExecutableDir();
+    if (!exe_dir.empty())
+    {
+        return (exe_dir / output_path).lexically_normal();
+    }
+
+    return output_path.lexically_normal();
 }
 
 void PrintConsoleLineAtomic(const std::string& line)
@@ -246,17 +590,17 @@ std::string FormatDouble(const double value, const int precision = 2)
 
 std::string FormatOptionalMillis(const std::optional<double>& value, const int precision = 2)
 {
-    return value.has_value() ? FormatDouble(*value, precision) + "ms" : "无";
+    return value.has_value() ? FormatDouble(*value, precision) + "ms" : "None";
 }
 
 std::string FormatOptionalInteger(const std::optional<std::int64_t>& value)
 {
-    return value.has_value() ? std::to_string(*value) : "无";
+    return value.has_value() ? std::to_string(*value) : "None";
 }
 
 std::string FormatOptionalWallMs(const std::optional<double>& value)
 {
-    return value.has_value() ? std::to_string(static_cast<std::int64_t>(std::llround(*value))) : "无";
+    return value.has_value() ? std::to_string(static_cast<std::int64_t>(std::llround(*value))) : "None";
 }
 
 std::string FormatOptionalTimeBase(
@@ -265,7 +609,7 @@ std::string FormatOptionalTimeBase(
 {
     if (!num.has_value() || !den.has_value())
     {
-        return "无";
+        return "None";
     }
     return std::to_string(*num) + "/" + std::to_string(*den);
 }
@@ -275,25 +619,25 @@ const char* ClockOffsetStatusToString(const ClockOffsetStatus status)
     switch (status)
     {
     case ClockOffsetStatus::kDisabled:
-        return "已禁用";
+        return "Disabled";
     case ClockOffsetStatus::kIdle:
-        return "空闲";
+        return "Idle";
     case ClockOffsetStatus::kRequestSent:
-        return "已发请求";
+        return "RequestSent";
     case ClockOffsetStatus::kResponseReceived:
-        return "已收响应";
+        return "ResponseReceived";
     case ClockOffsetStatus::kValid:
-        return "有效";
+        return "Valid";
     case ClockOffsetStatus::kTimeout:
-        return "超时";
+        return "Timeout";
     case ClockOffsetStatus::kInvalidResponse:
-        return "响应无效";
+        return "InvalidResponse";
     case ClockOffsetStatus::kSocketError:
-        return "套接字错误";
+        return "SocketError";
     case ClockOffsetStatus::kInitFailed:
-        return "初始化失败";
+        return "InitFailed";
     default:
-        return "未知";
+        return "Unknown";
     }
 }
 
@@ -301,24 +645,24 @@ std::string FormatClockOffsetRespState(const ClockOffsetStats& stats)
 {
     if (stats.status == ClockOffsetStatus::kValid)
     {
-        return "正常";
+        return "OK";
     }
     if (stats.last_raw_response_received && stats.last_response_parsed)
     {
-        return "已解析";
+        return "Parsed";
     }
     if (stats.last_raw_response_received)
     {
-        return "仅收到原始包";
+        return "RawOnly";
     }
-    return "无";
+    return "None";
 }
 
 std::string FormatClockOffsetStatus(const ClockOffsetStats* stats)
 {
     if (stats == nullptr)
     {
-        return "已禁用";
+        return "Disabled";
     }
     return ClockOffsetStatusToString(stats->status);
 }
@@ -373,12 +717,12 @@ int App::Run()
     InitializeSenderService();
     InitializeProfiling();
     spdlog::info(
-        "[信息] 目标选择模式={}，移动滤波={}",
-        config_.enable_tracker_state_machine ? "状态机" : "最近中心",
-        config_.enable_aim_motion_filters ? "开启" : "关闭");
+        "目标选择模式={} aim_filter={}",
+        config_.enable_tracker_state_machine ? "state_machine" : "nearest_center",
+        config_.enable_aim_motion_filters ? "on" : "off");
 
     spdlog::info(
-        "[信息] 当前自瞄控制参数：gain={}，单步上限={}px，死区={}px，更新间隔={}ms",
+        "自瞄参数: gain={} max_step={}px deadzone={}px update_interval={}ms",
         config_.aim_gain,
         config_.aim_max_step_px,
         config_.aim_deadzone_px,
@@ -413,7 +757,7 @@ bool App::InitializeNetworking()
     std::string error_message;
     if (!receiver_.Open(config_.listen_ip, config_.listen_port, error_message))
     {
-        spdlog::error("[错误] 初始化 UDP 接收器失败：{}", error_message);
+        spdlog::error("[错误] 初始化 UDP receiver 失败: {}", error_message);
         status_line_ = error_message;
         return false;
     }
@@ -425,20 +769,20 @@ bool App::InitializeMouseController()
 {
     if (!mouse_controller_.Initialize())
     {
-        status_line_ = "鼠标 DLL 初始化失败";
-        mouse_status_ = "DLL 不可用";
+        status_line_ = "Mouse DLL initialization failed";
+        mouse_status_ = "DLL unavailable";
         return false;
     }
 
     if (!mouse_controller_.SupportsRelativeMove())
     {
-        status_line_ = "鼠标 DLL 缺少 MoveR";
-        mouse_status_ = "不支持相对移动";
-        spdlog::error("[错误] 鼠标 DLL 不支持相对移动 MoveR");
+        status_line_ = "Mouse DLL is missing MoveR";
+        mouse_status_ = "Relative move unsupported";
+        spdlog::error("[错误] Mouse DLL 不支持 MoveR");
         return false;
     }
 
-    mouse_status_ = "DLL 相对移动";
+    mouse_status_ = "Relative DLL move";
     return true;
 }
 
@@ -446,46 +790,73 @@ void App::InitializeJsonSaver()
 {
     if (!config_.save_json)
     {
-        save_json_status_ = "关闭";
+        save_json_status_ = "Off";
         return;
     }
 
-    save_json_stream_.open(config_.save_json_path, std::ios::out | std::ios::trunc);
+    const fs::path save_json_path = ResolveOutputFilePath(config_.save_json_path);
+    std::error_code error_code;
+    const fs::path parent_dir = save_json_path.parent_path();
+    if (!parent_dir.empty())
+    {
+        fs::create_directories(parent_dir, error_code);
+    }
+
+    config_.save_json_path = PathToUtf8(save_json_path);
+    save_json_stream_.open(save_json_path, std::ios::out | std::ios::trunc);
     if (!save_json_stream_.is_open())
     {
-        save_json_status_ = "错误";
-        spdlog::error("[错误] 打开 JSON 保存文件失败：{}", config_.save_json_path);
+        save_json_status_ = "Error";
+        spdlog::error("[错误] 打开 JSON output 文件失败: {}", config_.save_json_path);
         return;
     }
 
-    save_json_status_ = "开启";
+    save_json_status_ = "On";
 }
 
 void App::InitializeSenderService()
 {
     if (!config_.enable_sender)
     {
-        ffmpeg_sender_status_ = "已禁用";
+        ffmpeg_sender_status_ = "Disabled";
         return;
     }
 
+    std::string resolve_error_message;
+    const auto resolved_ffmpeg_path =
+        ResolveConfiguredFfmpegPath(config_.ffmpeg_path, resolve_error_message);
+    if (!resolved_ffmpeg_path.has_value())
+    {
+        ffmpeg_sender_status_ = "ffmpeg not found";
+        sender_exit_reported_ = true;
+        spdlog::error("[错误] {}", resolve_error_message);
+        return;
+    }
+
+    config_.ffmpeg_path = *resolved_ffmpeg_path;
     sender_ = std::make_unique<FfmpegSenderService>(BuildSenderOptionsFromConfig(config_));
     if (!sender_->Start())
     {
-        ffmpeg_sender_status_ = "启动失败";
+        ffmpeg_sender_status_ = "StartFailed";
         sender_exit_reported_ = true;
-        spdlog::error("[错误] 启动 sender 失败：{}", sender_->LastError());
+        spdlog::error("[错误] 启动 sender 失败: {}", sender_->LastError());
         return;
     }
 
-    ffmpeg_sender_status_ = "运行中";
+    ffmpeg_sender_status_ = "Running";
     sender_exit_reported_ = false;
     spdlog::info(
-        "[信息] 当前 sender 推流配置：目标={}：{}，实际生效帧率={}Hz",
+        "sender ffmpeg={} target={}:{} framerate={}Hz",
+        config_.ffmpeg_path,
         config_.sender_output_ip,
         config_.sender_output_port,
         config_.sender_framerate);
-    spdlog::info("[信息] Sender 已启动，目标={}：{}", config_.sender_output_ip, config_.sender_output_port);
+    spdlog::info(
+        "当前 sender 配置: target={}:{} active_framerate={}Hz",
+        config_.sender_output_ip,
+        config_.sender_output_port,
+        config_.sender_framerate);
+    spdlog::info("sender 已启动, target={}:{}", config_.sender_output_ip, config_.sender_output_port);
 }
 
 void App::ShutdownSenderService()
@@ -496,7 +867,7 @@ void App::ShutdownSenderService()
     }
 
     sender_->Stop();
-    ffmpeg_sender_status_ = "已停止";
+    ffmpeg_sender_status_ = "Stopped";
 }
 
 void App::InitializeProfiling()
@@ -504,7 +875,7 @@ void App::InitializeProfiling()
     if (sender_)
     {
         timing_profiler_.SetSenderTimingContext(sender_->TimingContext());
-        timing_profiler_.SetSenderRunning(ffmpeg_sender_status_ == "运行中");
+        timing_profiler_.SetSenderRunning(ffmpeg_sender_status_ == "Running");
     }
 
     if (!config_.enable_clock_offset)
@@ -521,7 +892,7 @@ void App::InitializeProfiling()
     std::string error_message;
     if (!clock_offset_client_->Initialize(clock_config, error_message))
     {
-        spdlog::warn("[警告] 时钟校准初始化失败：{}", error_message);
+        spdlog::warn("[警告] clock offset 初始化失败: {}", error_message);
         last_clock_offset_request_at_ = Clock::now();
         return;
     }
@@ -538,14 +909,14 @@ void App::PollSenderService()
 
     if (sender_->IsRunning())
     {
-        ffmpeg_sender_status_ = "运行中";
+        ffmpeg_sender_status_ = "Running";
         return;
     }
 
-    ffmpeg_sender_status_ = "已退出(" + std::to_string(sender_->ExitCode()) + ")";
+    ffmpeg_sender_status_ = "Exited(" + std::to_string(sender_->ExitCode()) + ")";
     if (!sender_exit_reported_)
     {
-        spdlog::error("[错误] Sender 已退出：{}", sender_->LastError());
+        spdlog::error("[错误] Sender 已退出: {}", sender_->LastError());
         sender_exit_reported_ = true;
     }
 }
@@ -555,7 +926,7 @@ void App::PollProfiling()
     if (sender_)
     {
         timing_profiler_.SetSenderTimingContext(sender_->TimingContext());
-        timing_profiler_.SetSenderRunning(ffmpeg_sender_status_ == "运行中");
+        timing_profiler_.SetSenderRunning(ffmpeg_sender_status_ == "Running");
     }
     else
     {
@@ -594,27 +965,27 @@ void App::MaybeLogProfilingSummary()
 
     const auto& estimate = timing_profiler_.LatestEstimate();
     std::ostringstream oss;
-    oss << "[时序] 发送端=" << (timing_profiler_.SenderRunning() ? "运行中" : "已停止");
+    oss << "[时序] sender=" << (timing_profiler_.SenderRunning() ? "running" : "stopped");
     if (clock_stats != nullptr)
     {
-        oss << " 偏移状态=" << FormatClockOffsetStatus(clock_stats)
-            << " 最近有效偏移=" << FormatOptionalMillis(clock_stats->last_valid_offset_ms)
-            << " 往返延迟=" << FormatOptionalMillis(clock_stats->last_valid_delay_ms)
-            << " 偏移可用=" << (clock_stats->last_valid_offset_ms.has_value() ? "是" : "否")
-            << " 远端=" << clock_stats->remote_ip << ":" << clock_stats->remote_port
-            << " 本地端口=" << clock_stats->local_port
-            << " 请求状态=" << (clock_stats->measurement_in_flight ? "等待响应" : "空闲")
-            << " 响应状态=" << FormatClockOffsetRespState(*clock_stats)
-            << " 已解析=" << (clock_stats->last_response_parsed ? "是" : "否")
-            << " 响应来源=" << clock_stats->last_response_ip << ":" << clock_stats->last_response_port
-            << " 响应字节数=" << clock_stats->last_response_bytes;
+        oss << " offset_state=" << FormatClockOffsetStatus(clock_stats)
+            << " 最近有效offset=" << FormatOptionalMillis(clock_stats->last_valid_offset_ms)
+            << " rtt=" << FormatOptionalMillis(clock_stats->last_valid_delay_ms)
+            << " offset可用=" << (clock_stats->last_valid_offset_ms.has_value() ? "yes" : "no")
+            << " remote=" << clock_stats->remote_ip << ":" << clock_stats->remote_port
+            << " local_port=" << clock_stats->local_port
+            << " request_state=" << (clock_stats->measurement_in_flight ? "waiting" : "idle")
+            << " response_state=" << FormatClockOffsetRespState(*clock_stats)
+            << " 已解析=" << (clock_stats->last_response_parsed ? "yes" : "no")
+            << " response_source=" << clock_stats->last_response_ip << ":" << clock_stats->last_response_port
+            << " response_bytes=" << clock_stats->last_response_bytes;
     }
     else
     {
-        oss << " 偏移状态=已禁用"
-            << " 最近有效偏移=无"
-            << " 往返延迟=无"
-            << " 偏移可用=否";
+        oss << " offset_state=disabled"
+            << " 最近有效offset=None"
+            << " rtt=None"
+            << " offset可用=no";
     }
 
     if (timing_profiler_.LatestSeq().has_value())
@@ -623,27 +994,27 @@ void App::MaybeLogProfilingSummary()
     }
     else
     {
-        oss << " 帧序号=无";
+        oss << " 帧序号=None";
     }
 
-    oss << " 帧PTS=" << FormatOptionalInteger(timing_profiler_.LatestFramePts())
-        << " 锚点=" << (estimate.anchor_ready ? "已就绪" : "未建立")
-        << " 锚点PTS=" << FormatOptionalInteger(estimate.anchor_frame_pts)
-        << " 锚点时基=" <<
+    oss << " frame_pts=" << FormatOptionalInteger(timing_profiler_.LatestFramePts())
+        << " 锚点=" << (estimate.anchor_ready ? "ready" : "not_ready")
+        << " anchor_pts=" << FormatOptionalInteger(estimate.anchor_frame_pts)
+        << " anchor_tb=" <<
             FormatOptionalTimeBase(estimate.anchor_time_base_num, estimate.anchor_time_base_den)
-        << " 锚点板端推理完成时间=" << FormatOptionalWallMs(estimate.anchor_board_ms)
-        << " 锚点板端流水线耗时=" << FormatOptionalMillis(estimate.anchor_pipeline_delay_ms)
-        << " 锚点年龄=" << FormatOptionalInteger(estimate.anchor_age_ms)
-        << " 锚点重置次数=" << estimate.anchor_resets
-        << " 估算发送时刻=" << FormatOptionalInteger(estimate.nominal_send_ms)
-        << " 板端推理完成时间=" << FormatOptionalInteger(estimate.board_wall_infer_done_ms)
-        << " 板端预处理耗时=" << FormatOptionalMillis(estimate.board_pre_ms)
-        << " 板端推理耗时=" << FormatOptionalMillis(estimate.board_infer_ms)
-        << " 板端后处理耗时=" << FormatOptionalMillis(estimate.board_post_ms)
-        << " 板端结果发送耗时=" << FormatOptionalMillis(estimate.board_result_send_ms)
-        << " 估算链路到推理完成耗时=" <<
+        << " anchor_board_ms=" << FormatOptionalWallMs(estimate.anchor_board_ms)
+        << " anchor_pipeline_ms=" << FormatOptionalMillis(estimate.anchor_pipeline_delay_ms)
+        << " anchor_age_ms=" << FormatOptionalInteger(estimate.anchor_age_ms)
+        << " anchor重置次数=" << estimate.anchor_resets
+        << " nominal_send_ms=" << FormatOptionalInteger(estimate.nominal_send_ms)
+        << " board_infer_done_ms=" << FormatOptionalInteger(estimate.board_wall_infer_done_ms)
+        << " board_pre_ms=" << FormatOptionalMillis(estimate.board_pre_ms)
+        << " board_infer_ms=" << FormatOptionalMillis(estimate.board_infer_ms)
+        << " board_post_ms=" << FormatOptionalMillis(estimate.board_post_ms)
+        << " board_send_ms=" << FormatOptionalMillis(estimate.board_result_send_ms)
+        << " est_pipeline_to_infer_ms=" <<
             FormatOptionalMillis(estimate.estimated_pipeline_to_infer_done_ms)
-        << " 结果回传耗时=" << FormatOptionalMillis(estimate.result_return_ms);
+        << " result_return_ms=" << FormatOptionalMillis(estimate.result_return_ms);
     PrintConsoleLineAtomic(oss.str());
 }
 
@@ -653,14 +1024,14 @@ bool App::RegisterToggleHotkey(HWND target_window)
 
     if (!RegisterHotKey(target_window, kToggleAutoMoveHotkeyId, MOD_NOREPEAT, 'Q'))
     {
-        hotkey_status_ = "Q 不可用";
-        spdlog::error("[错误] 注册热键 Q 失败，错误码={}", GetLastError());
+        hotkey_status_ = "Q unavailable";
+        spdlog::error("[错误] 注册 hotkey Q 失败, error_code={}", GetLastError());
         return false;
     }
 
     hotkey_registered_ = true;
     hotkey_target_ = target_window;
-    hotkey_status_ = "Q 切换";
+    hotkey_status_ = "Q toggle";
     return true;
 }
 
@@ -733,18 +1104,18 @@ bool App::ProcessIncomingPackets(bool* state_changed)
             if (timing_estimate.anchor_reset)
             {
                 spdlog::warn(
-                    "[警告] [时序] 锚点已重置，原因={}，累计重置次数={}",
+                    "[警告] [时序] 锚点已重置, reason={}, total_resets={}",
                     timing_estimate.anchor_reset_reason,
                     timing_estimate.anchor_resets);
             }
             const TrackerDecision decision = UpdateTracker(*latest_frame_);
             latest_selection_ = decision.selection;
-            status_line_ = "正常";
+            status_line_ = "OK";
         }
         else
         {
             status_line_ = error_message;
-            spdlog::warn("[警告] 解析结果 JSON 失败：{}", error_message);
+            spdlog::warn("[警告] 解析 result JSON 失败: {}", error_message);
         }
 
         changed = true;
@@ -802,7 +1173,7 @@ bool App::CreateMainWindow()
 
     if (RegisterClassExA(&window_class) == 0)
     {
-        spdlog::error("[错误] 注册窗口类失败，错误码={}", GetLastError());
+        spdlog::error("[错误] 注册 window class 失败, error_code={}", GetLastError());
         return false;
     }
 
@@ -825,7 +1196,7 @@ bool App::CreateMainWindow()
 
     if (hwnd_ == nullptr)
     {
-        spdlog::error("[错误] 创建主窗口失败，错误码={}", GetLastError());
+        spdlog::error("[错误] 创建 main window 失败, error_code={}", GetLastError());
         return false;
     }
 
@@ -1042,8 +1413,8 @@ void App::DrawWaitingState(HDC hdc, const RECT& client_rect) const
     DeleteObject(border_pen);
 
     const std::string waiting_text = has_received_packet_
-        ? "最近没有新的 UDP 数据包"
-        : "等待 UDP 数据包";
+        ? "No recent UDP packets"
+        : "Waiting for UDP packets";
 
     RECT text_rect = canvas_rect;
     DrawTextA(hdc, waiting_text.c_str(), -1, &text_rect, DT_CENTER | DT_VCENTER | DT_SINGLELINE);
@@ -1196,23 +1567,23 @@ void App::DrawInfoPanel(HDC hdc, const RECT& panel_rect) const
     write_line("remote_box_receiver", Rgb(236, 241, 246));
     write_line("listen: " + config_.listen_ip + ":" + std::to_string(config_.listen_port), Rgb(205, 214, 224));
     write_line("udp_sender: " + latest_sender_, Rgb(205, 214, 224));
-    write_line("tracker_mode: " + std::string(config_.enable_tracker_state_machine ? "状态机" : "最近中心"), Rgb(205, 214, 224));
-    write_line("aim_filter: " + std::string(config_.enable_aim_motion_filters ? "开" : "关"), Rgb(205, 214, 224));
-    write_line("ffmpeg_sender: " + ffmpeg_sender_status_, ffmpeg_sender_status_ == "运行中" ? Rgb(162, 227, 184) : Rgb(205, 214, 224));
-    write_line("status: " + status_line_, status_line_ == "正常" ? Rgb(162, 227, 184) : Rgb(255, 189, 120));
+    write_line("tracker_mode: " + std::string(config_.enable_tracker_state_machine ? "state_machine" : "nearest_center"), Rgb(205, 214, 224));
+    write_line("aim_filter: " + std::string(config_.enable_aim_motion_filters ? "on" : "off"), Rgb(205, 214, 224));
+    write_line("ffmpeg_sender: " + ffmpeg_sender_status_, ffmpeg_sender_status_ == "Running" ? Rgb(162, 227, 184) : Rgb(205, 214, 224));
+    write_line("status: " + status_line_, status_line_ == "OK" ? Rgb(162, 227, 184) : Rgb(255, 189, 120));
     write_line("tracker: " + std::string(TrackerStateToString(tracker_state_)),
         tracker_state_ == TrackerState::kTracking ? Rgb(162, 227, 184) :
         tracker_state_ == TrackerState::kLost ? Rgb(255, 214, 102) : Rgb(205, 214, 224));
     write_line("mouse: " + mouse_status_, Rgb(205, 214, 224));
-    write_line("auto_move: " + std::string(auto_move_enabled_ ? "开" : "关"), auto_move_enabled_ ? Rgb(255, 214, 102) : Rgb(205, 214, 224));
+    write_line("auto_move: " + std::string(auto_move_enabled_ ? "on" : "off"), auto_move_enabled_ ? Rgb(255, 214, 102) : Rgb(205, 214, 224));
     write_line("hotkey: " + hotkey_status_, Rgb(205, 214, 224));
     write_line("", Rgb(205, 214, 224));
 
     if (!latest_frame_.has_value())
     {
-        write_line("seq: 无", Rgb(205, 214, 224));
-        write_line("box_count: 无", Rgb(205, 214, 224));
-        write_line("screen_xy: 无", Rgb(205, 214, 224));
+        write_line("seq: None", Rgb(205, 214, 224));
+        write_line("box_count: None", Rgb(205, 214, 224));
+        write_line("screen_xy: None", Rgb(205, 214, 224));
         write_profiling_lines();
         return;
     }
@@ -1225,8 +1596,8 @@ void App::DrawInfoPanel(HDC hdc, const RECT& panel_rect) const
     write_line("roi_offset: (" + std::to_string(config_.roi_offset_x) + ", " + std::to_string(config_.roi_offset_y) + ")", Rgb(205, 214, 224));
     write_line("screen: " + std::to_string(config_.screen_width) + "x" + std::to_string(config_.screen_height), Rgb(205, 214, 224));
     write_line("screen_center: (" + std::to_string(config_.screen_width / 2) + ", " + std::to_string(config_.screen_height / 2) + ")", Rgb(205, 214, 224));
-    write_line("tracking: " + std::string(tracker_state_ == TrackerState::kTracking ? "是" : "否"), Rgb(205, 214, 224));
-    write_line("lost: " + std::string(tracker_state_ == TrackerState::kLost ? "是" : "否"), Rgb(205, 214, 224));
+    write_line("tracking: " + std::string(tracker_state_ == TrackerState::kTracking ? "yes" : "no"), Rgb(205, 214, 224));
+    write_line("lost: " + std::string(tracker_state_ == TrackerState::kLost ? "yes" : "no"), Rgb(205, 214, 224));
     write_line("", Rgb(205, 214, 224));
 
     const SelectionResult* display_target = nullptr;
@@ -1245,7 +1616,7 @@ void App::DrawInfoPanel(HDC hdc, const RECT& panel_rect) const
 
     if (display_target == nullptr)
     {
-        write_line("locked target: 无", Rgb(255, 214, 102));
+        write_line("locked target: None", Rgb(255, 214, 102));
         write_profiling_lines();
         return;
     }
@@ -1283,13 +1654,13 @@ bool App::ParseFrameJson(const std::string& json_text, FrameData& frame, std::st
     }
     catch (const std::exception& ex)
     {
-        error_message = std::string("JSON 非法: ") + ex.what();
+        error_message = std::string("Invalid JSON: ") + ex.what();
         return false;
     }
 
     if (!root.is_object())
     {
-        error_message = "JSON 根节点必须是对象";
+        error_message = "JSON root must be an object";
         return false;
     }
 
@@ -1346,18 +1717,18 @@ bool App::ParseFrameJson(const std::string& json_text, FrameData& frame, std::st
     const auto boxes_it = root.find("boxes");
     if (boxes_it == root.end())
     {
-        error_message = "缺少数组字段: boxes";
+        error_message = "Missing array field: boxes";
         return false;
     }
     if (!boxes_it->is_array())
     {
-        error_message = "字段不是数组: boxes";
+        error_message = "Field is not an array: boxes";
         return false;
     }
 
     if (frame.frame_width <= 0 || frame.frame_height <= 0)
     {
-        error_message = "frame_width 和 frame_height 必须为正数";
+        error_message = "frame_width and frame_height must be positive";
         return false;
     }
 
@@ -1404,7 +1775,7 @@ bool App::ParseFrameJson(const std::string& json_text, FrameData& frame, std::st
 
     if (frame.box_count < 0)
     {
-        error_message = "box_count 必须大于等于 0";
+        error_message = "box_count must be >= 0";
         return false;
     }
 

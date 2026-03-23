@@ -62,7 +62,7 @@ public:
             reinterpret_cast<OpenDeviceFunctionType>(GetProcAddress(library_, "OpenDevice"));
         if (open_device == nullptr || open_device() == 0)
         {
-            spdlog::error("[错误] 鼠标设备未就绪，无法打开 ddll64 设备");
+            spdlog::error("[错误] 鼠标设备未就绪, 打开 ddll64 失败");
             return false;
         }
 
@@ -70,7 +70,7 @@ public:
             reinterpret_cast<MoveToFunctionType>(GetProcAddress(library_, "MoveTo"));
         if (move_to_ == nullptr)
         {
-            spdlog::error("[错误] ddll64.dll 中缺少 MoveTo 导出");
+            spdlog::error("[错误] ddll64.dll 缺少 MoveTo 导出");
             return false;
         }
 

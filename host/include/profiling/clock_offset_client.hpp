@@ -33,7 +33,7 @@ struct ClockOffsetStats
     bool last_raw_response_received = false;
     bool last_response_parsed = false;
     std::uint64_t last_request_id = 0;
-    std::string remote_ip = "无";
+    std::string remote_ip = "None";
     int remote_port = 0;
     int local_port = 0;
     ClockOffsetStatus status = ClockOffsetStatus::kDisabled;
@@ -45,7 +45,7 @@ struct ClockOffsetStats
     std::optional<std::int64_t> last_t2_ns;
     std::optional<std::int64_t> last_t3_ns;
     std::optional<std::int64_t> last_t4_ns;
-    std::string last_response_ip = "无";
+    std::string last_response_ip = "None";
     int last_response_port = 0;
     int last_response_bytes = 0;
     std::string last_payload_preview;

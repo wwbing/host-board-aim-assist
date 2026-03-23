@@ -34,14 +34,14 @@ bool UdpReceiver::Open(const std::string& listen_ip, const int listen_port, std:
 
     if (listen_port <= 0 || listen_port > std::numeric_limits<std::uint16_t>::max())
     {
-        error_message = "listen_port 超出有效范围";
+        error_message = "listen_port 超出范围";
         return false;
     }
 
     WSADATA wsa_data = {};
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
     {
-        error_message = GetLastSocketErrorMessage("初始化 WinSock");
+        error_message = GetLastSocketErrorMessage("WSAStartup");
         return false;
     }
     started_winsock_ = true;
@@ -49,7 +49,7 @@ bool UdpReceiver::Open(const std::string& listen_ip, const int listen_port, std:
     SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sock == INVALID_SOCKET)
     {
-        error_message = GetLastSocketErrorMessage("创建 UDP 套接字");
+        error_message = GetLastSocketErrorMessage("socket(AF_INET, SOCK_DGRAM)");
         Close();
         return false;
     }
@@ -58,7 +58,7 @@ bool UdpReceiver::Open(const std::string& listen_ip, const int listen_port, std:
     u_long non_blocking = 1;
     if (ioctlsocket(sock, FIONBIO, &non_blocking) != NO_ERROR)
     {
-        error_message = GetLastSocketErrorMessage("设置 UDP 非阻塞模式");
+        error_message = GetLastSocketErrorMessage("ioctlsocket(FIONBIO)");
         Close();
         return false;
     }
@@ -73,14 +73,14 @@ bool UdpReceiver::Open(const std::string& listen_ip, const int listen_port, std:
     }
     else if (InetPtonA(AF_INET, listen_ip.c_str(), &address.sin_addr) != 1)
     {
-        error_message = "listen_ip 非法: " + listen_ip;
+        error_message = "listen_ip 无效: " + listen_ip;
         Close();
         return false;
     }
 
     if (bind(sock, reinterpret_cast<const sockaddr*>(&address), sizeof(address)) == SOCKET_ERROR)
     {
-        error_message = GetLastSocketErrorMessage("绑定 UDP 监听地址");
+        error_message = GetLastSocketErrorMessage("bind(listen address)");
         Close();
         return false;
     }

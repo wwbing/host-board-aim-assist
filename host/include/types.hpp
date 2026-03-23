@@ -23,10 +23,7 @@ struct Config
     int roi_height = 640;
     int roi_offset_x = 0;
     int roi_offset_y = 0;
-    std::string ffmpeg_path =
-        "C:\\Users\\jiahao\\AppData\\Local\\Microsoft\\WinGet\\Packages\\"
-        "Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\"
-        "ffmpeg-8.1-full_build\\bin\\ffmpeg.exe";
+    std::string ffmpeg_path;
     std::string sender_output_ip = "192.168.7.2";
     int sender_output_port = 5000;
     int sender_output_idx = 0;

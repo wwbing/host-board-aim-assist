@@ -64,7 +64,7 @@ std::string SockaddrToIpString(const sockaddr_in& address)
     char ip_buffer[INET_ADDRSTRLEN] = {};
     if (InetNtopA(AF_INET, const_cast<IN_ADDR*>(&address.sin_addr), ip_buffer, sizeof(ip_buffer)) == nullptr)
     {
-        return "未知";
+        return "unknown";
     }
     return ip_buffer;
 }
@@ -113,7 +113,7 @@ void ResetAttemptStats(ClockOffsetStats& stats)
     stats.last_t2_ns.reset();
     stats.last_t3_ns.reset();
     stats.last_t4_ns.reset();
-    stats.last_response_ip = "无";
+    stats.last_response_ip = "None";
     stats.last_response_port = 0;
     stats.last_response_bytes = 0;
     stats.last_payload_preview.clear();
@@ -137,7 +137,7 @@ bool ClockOffsetClient::Initialize(const ClockOffsetClientConfig& config, std::s
 
     if (config.remote_port <= 0 || config.remote_port > std::numeric_limits<std::uint16_t>::max())
     {
-        error_message = "clock offset remote_port 超出有效范围";
+        error_message = "clock offset remote_port 超出范围";
         stats_.last_error = error_message;
         return false;
     }
@@ -145,7 +145,7 @@ bool ClockOffsetClient::Initialize(const ClockOffsetClientConfig& config, std::s
     WSADATA wsa_data = {};
     if (WSAStartup(MAKEWORD(2, 2), &wsa_data) != 0)
     {
-        error_message = GetLastSocketErrorMessage("初始化时钟校准 WinSock");
+        error_message = GetLastSocketErrorMessage("clock offset WSAStartup");
         stats_.last_error = error_message;
         return false;
     }
@@ -154,7 +154,7 @@ bool ClockOffsetClient::Initialize(const ClockOffsetClientConfig& config, std::s
     SOCKET sock = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (sock == INVALID_SOCKET)
     {
-        error_message = GetLastSocketErrorMessage("创建时钟校准 UDP 套接字");
+        error_message = GetLastSocketErrorMessage("clock offset socket(AF_INET, SOCK_DGRAM)");
         Shutdown();
         stats_.remote_ip = config.remote_ip;
         stats_.remote_port = config.remote_port;
@@ -168,7 +168,7 @@ bool ClockOffsetClient::Initialize(const ClockOffsetClientConfig& config, std::s
     u_long non_blocking = 1;
     if (ioctlsocket(sock, FIONBIO, &non_blocking) != NO_ERROR)
     {
-        error_message = GetLastSocketErrorMessage("设置时钟校准套接字为非阻塞模式");
+        error_message = GetLastSocketErrorMessage("clock offset ioctlsocket(FIONBIO)");
         Shutdown();
         stats_.remote_ip = config.remote_ip;
         stats_.remote_port = config.remote_port;
@@ -184,7 +184,7 @@ bool ClockOffsetClient::Initialize(const ClockOffsetClientConfig& config, std::s
 
     if (bind(sock, reinterpret_cast<const sockaddr*>(&local_address), sizeof(local_address)) == SOCKET_ERROR)
     {
-        error_message = GetLastSocketErrorMessage("绑定时钟校准本地端口");
+        error_message = GetLastSocketErrorMessage("clock offset bind(local port)");
         Shutdown();
         stats_.remote_ip = config.remote_ip;
         stats_.remote_port = config.remote_port;
@@ -198,8 +198,8 @@ bool ClockOffsetClient::Initialize(const ClockOffsetClientConfig& config, std::s
     stats_.status = ClockOffsetStatus::kIdle;
     stats_.last_error.clear();
     PrintClockOffsetLine(
-        "[时钟校准] 已初始化，远端=" + stats_.remote_ip + ":" + std::to_string(stats_.remote_port) +
-        "，本地端口=" + std::to_string(stats_.local_port));
+        "[clock_offset] 已初始化, remote=" + stats_.remote_ip + ":" + std::to_string(stats_.remote_port) +
+        ", local_port=" + std::to_string(stats_.local_port));
     return true;
 }
 
@@ -250,7 +250,7 @@ void ClockOffsetClient::StartMeasurement()
     remote_address.sin_port = htons(static_cast<u_short>(config_.remote_port));
     if (InetPtonA(AF_INET, config_.remote_ip.c_str(), &remote_address.sin_addr) != 1)
     {
-        stats_.last_error = "clock offset remote_ip 非法: " + config_.remote_ip;
+        stats_.last_error = "clock offset remote_ip 无效: " + config_.remote_ip;
         stats_.status = ClockOffsetStatus::kSocketError;
         return;
     }
@@ -276,7 +276,7 @@ void ClockOffsetClient::StartMeasurement()
 
     if (send_result == SOCKET_ERROR)
     {
-        stats_.last_error = GetLastSocketErrorMessage("发送时钟校准请求");
+        stats_.last_error = GetLastSocketErrorMessage("send clock offset request");
         stats_.last_request_sent = false;
         stats_.status = ClockOffsetStatus::kSocketError;
         return;
@@ -289,13 +289,13 @@ void ClockOffsetClient::StartMeasurement()
     stats_.status = ClockOffsetStatus::kRequestSent;
     pending_started_at_ = std::chrono::steady_clock::now();
     PrintClockOffsetLine(
-        "[时钟校准] 已发送请求，请求号=" + std::to_string(pending_request_id_) +
-        "，远端=" + config_.remote_ip + ":" + std::to_string(config_.remote_port) +
-        "，本地端口=" + std::to_string(stats_.local_port) +
-        "，超时=" + std::to_string(config_.timeout_ms) + "ms");
+        "[clock_offset] 已发送请求, request_id=" + std::to_string(pending_request_id_) +
+        ", remote=" + config_.remote_ip + ":" + std::to_string(config_.remote_port) +
+        ", local_port=" + std::to_string(stats_.local_port) +
+        ", timeout=" + std::to_string(config_.timeout_ms) + "ms");
     PrintClockOffsetLine(
-        "[时钟校准] 等待响应，请求号=" + std::to_string(pending_request_id_) +
-        "，超时=" + std::to_string(config_.timeout_ms) + "ms");
+        "[clock_offset] 等待响应, request_id=" + std::to_string(pending_request_id_) +
+        ", timeout=" + std::to_string(config_.timeout_ms) + "ms");
 }
 
 void ClockOffsetClient::Poll()
@@ -322,9 +322,9 @@ void ClockOffsetClient::Poll()
         {
             if (WSAGetLastError() != WSAEWOULDBLOCK)
             {
-                stats_.last_error = GetLastSocketErrorMessage("接收时钟校准响应");
+                stats_.last_error = GetLastSocketErrorMessage("recv clock offset response");
                 stats_.status = ClockOffsetStatus::kSocketError;
-                spdlog::error("[错误] [时钟校准] {}", stats_.last_error);
+                spdlog::error("[错误] [clock_offset] {}", stats_.last_error);
             }
             break;
         }
@@ -343,9 +343,9 @@ void ClockOffsetClient::Poll()
         }
 
         PrintClockOffsetLine(
-            "[时钟校准] 收到 UDP 响应，来源=" + stats_.last_response_ip + ":" +
-            std::to_string(stats_.last_response_port) + "，字节数=" +
-            std::to_string(stats_.last_response_bytes) + "，内容预览=" + stats_.last_payload_preview);
+            "[clock_offset] 收到 UDP 响应, source=" + stats_.last_response_ip + ":" +
+            std::to_string(stats_.last_response_port) + ", bytes=" +
+            std::to_string(stats_.last_response_bytes) + ", preview=" + stats_.last_payload_preview);
 
         try
         {
@@ -356,8 +356,8 @@ void ClockOffsetClient::Poll()
                 {
                     stats_.measurement_in_flight = false;
                     stats_.status = ClockOffsetStatus::kInvalidResponse;
-                    stats_.last_error = "时钟校准响应根节点不是对象";
-                    spdlog::warn("[警告] [时钟校准] 响应无效：根节点不是对象");
+                    stats_.last_error = "clock offset response 的 root 不是 object";
+                    spdlog::warn("[警告] [clock_offset] 响应无效: root 不是 object");
                 }
                 continue;
             }
@@ -375,8 +375,8 @@ void ClockOffsetClient::Poll()
                 {
                     stats_.measurement_in_flight = false;
                     stats_.status = ClockOffsetStatus::kInvalidResponse;
-                    stats_.last_error = "时钟校准响应缺少 t1/t2/t3/request_id";
-                    spdlog::warn("[警告] [时钟校准] 响应无效：缺少 request_id 或 t1/t2/t3");
+                    stats_.last_error = "clock offset response 缺少 request_id 或 t1/t2/t3";
+                    spdlog::warn("[警告] [clock_offset] 响应无效: 缺少 request_id 或 t1/t2/t3");
                 }
                 continue;
             }
@@ -390,16 +390,16 @@ void ClockOffsetClient::Poll()
             if (!stats_.measurement_in_flight || request_id != pending_request_id_)
             {
                 PrintClockOffsetLine(
-                    "[时钟校准] 忽略过期响应，收到请求号=" + std::to_string(request_id) +
-                    "，当前等待请求号=" + std::to_string(pending_request_id_));
+                    "[clock_offset] 忽略过期响应, received_request_id=" + std::to_string(request_id) +
+                    ", pending_request_id=" + std::to_string(pending_request_id_));
                 continue;
             }
             if (t1_ns != pending_t1_ns_)
             {
                 stats_.measurement_in_flight = false;
                 stats_.status = ClockOffsetStatus::kInvalidResponse;
-                stats_.last_error = "时钟校准响应的 t1_ns 与待处理请求不匹配";
-                spdlog::warn("[警告] [时钟校准] 响应无效：t1_ns 不匹配");
+                stats_.last_error = "clock offset response 的 t1_ns 与 pending request 不匹配";
+                spdlog::warn("[警告] [clock_offset] 响应无效: t1_ns 不匹配");
                 continue;
             }
 
@@ -416,13 +416,13 @@ void ClockOffsetClient::Poll()
             pending_t1_ns_ = 0;
             pending_started_at_ = {};
             PrintClockOffsetLine(
-                "[时钟校准] 校准有效，请求号=" + std::to_string(request_id) +
-                "，t1_ns=" + std::to_string(t1_ns) +
-                "，t2_ns=" + std::to_string(t2_ns) +
-                "，t3_ns=" + std::to_string(t3_ns) +
-                "，t4_ns=" + std::to_string(t4_ns) +
-                "，时钟偏移=" + std::to_string(*stats_.last_valid_offset_ms) + "ms" +
-                "，往返延迟=" + std::to_string(*stats_.last_valid_delay_ms) + "ms");
+                "[clock_offset] 校准有效, request_id=" + std::to_string(request_id) +
+                ", t1_ns=" + std::to_string(t1_ns) +
+                ", t2_ns=" + std::to_string(t2_ns) +
+                ", t3_ns=" + std::to_string(t3_ns) +
+                ", t4_ns=" + std::to_string(t4_ns) +
+                ", offset=" + std::to_string(*stats_.last_valid_offset_ms) + "ms" +
+                ", rtt=" + std::to_string(*stats_.last_valid_delay_ms) + "ms");
         }
         catch (const std::exception& ex)
         {
@@ -431,8 +431,8 @@ void ClockOffsetClient::Poll()
                 stats_.measurement_in_flight = false;
                 stats_.last_response_parsed = false;
                 stats_.status = ClockOffsetStatus::kInvalidResponse;
-                stats_.last_error = std::string("解析时钟校准响应失败: ") + ex.what();
-                spdlog::warn("[警告] [时钟校准] {}", stats_.last_error);
+                stats_.last_error = std::string("解析 clock offset response 失败: ") + ex.what();
+                spdlog::warn("[警告] [clock_offset] {}", stats_.last_error);
             }
             continue;
         }
@@ -444,11 +444,11 @@ void ClockOffsetClient::Poll()
     {
         stats_.measurement_in_flight = false;
         stats_.status = ClockOffsetStatus::kTimeout;
-        stats_.last_error = "时钟校准请求超时";
+        stats_.last_error = "clock offset request 超时";
         PrintClockOffsetLine(
-            "[时钟校准] 请求超时，请求号=" + std::to_string(pending_request_id_) +
-            "，本地端口=" + std::to_string(stats_.local_port) +
-            "，远端=" + config_.remote_ip + ":" + std::to_string(config_.remote_port));
+            "[clock_offset] 请求超时, request_id=" + std::to_string(pending_request_id_) +
+            ", local_port=" + std::to_string(stats_.local_port) +
+            ", remote=" + config_.remote_ip + ":" + std::to_string(config_.remote_port));
     }
 }
 

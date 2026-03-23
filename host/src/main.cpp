@@ -17,8 +17,8 @@ namespace
 void PrintUsage()
 {
     std::cout
-        << "用法: remote_box_receiver [选项]\n"
-        << "选项:\n"
+        << "Usage: remote_box_receiver [options]\n"
+        << "Options:\n"
         << "  --listen_ip <ip>\n"
         << "  --listen_port <port>\n"
         << "  --display\n"
@@ -53,8 +53,8 @@ void PrintUsage()
         << "  --aim_gain <value>\n"
         << "  --aim_max_step_px <value>\n"
         << "  --aim_update_interval_ms <value>\n"
-        << "热键:\n"
-        << "  Q 切换自动移动开关\n"
+        << "Hotkey:\n"
+        << "  Q Toggle auto-move\n"
         << "  --help\n";
 }
 
@@ -253,7 +253,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (i + 1 >= argc)
             {
-                spdlog::error("[错误] 参数 --listen_ip 缺少取值");
+                spdlog::error("[错误] 缺少 --listen_ip 的取值");
                 return ParseResult::kError;
             }
             config.listen_ip = argv[++i];
@@ -293,7 +293,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.listen_port))
             {
-                spdlog::error("[错误] 参数 --listen_port 的取值无效");
+                spdlog::error("[错误] --listen_port 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -302,7 +302,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.screen_width))
             {
-                spdlog::error("[错误] 参数 --screen_width 的取值无效");
+                spdlog::error("[错误] --screen_width 取值无效");
                 return ParseResult::kError;
             }
             config.screen_width_overridden = true;
@@ -312,7 +312,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.screen_height))
             {
-                spdlog::error("[错误] 参数 --screen_height 的取值无效");
+                spdlog::error("[错误] --screen_height 取值无效");
                 return ParseResult::kError;
             }
             config.screen_height_overridden = true;
@@ -322,7 +322,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.roi_width))
             {
-                spdlog::error("[错误] 参数 --roi_width 的取值无效");
+                spdlog::error("[错误] --roi_width 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -331,7 +331,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.roi_height))
             {
-                spdlog::error("[错误] 参数 --roi_height 的取值无效");
+                spdlog::error("[错误] --roi_height 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -340,7 +340,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.roi_offset_x))
             {
-                spdlog::error("[错误] 参数 --roi_offset_x 的取值无效");
+                spdlog::error("[错误] --roi_offset_x 取值无效");
                 return ParseResult::kError;
             }
             config.roi_offset_x_overridden = true;
@@ -350,7 +350,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.roi_offset_y))
             {
-                spdlog::error("[错误] 参数 --roi_offset_y 的取值无效");
+                spdlog::error("[错误] --roi_offset_y 取值无效");
                 return ParseResult::kError;
             }
             config.roi_offset_y_overridden = true;
@@ -360,7 +360,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadStringOption(argc, argv, i, config.ffmpeg_path))
             {
-                spdlog::error("[错误] 参数 --ffmpeg_path 的取值无效");
+                spdlog::error("[错误] --ffmpeg_path 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -369,7 +369,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadStringOption(argc, argv, i, config.sender_output_ip))
             {
-                spdlog::error("[错误] 参数 --sender_output_ip 的取值无效");
+                spdlog::error("[错误] --sender_output_ip 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -378,7 +378,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_output_port))
             {
-                spdlog::error("[错误] 参数 --sender_output_port 的取值无效");
+                spdlog::error("[错误] --sender_output_port 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -387,7 +387,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_output_idx))
             {
-                spdlog::error("[错误] 参数 --sender_output_idx 的取值无效");
+                spdlog::error("[错误] --sender_output_idx 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -396,7 +396,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_framerate))
             {
-                spdlog::error("[错误] 参数 --sender_framerate 的取值无效");
+                spdlog::error("[错误] --sender_framerate 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -405,7 +405,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_framerate))
             {
-                spdlog::error("[错误] 参数 --videofrequency 的取值无效");
+                spdlog::error("[错误] --videofrequency 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -419,7 +419,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_crop_width))
             {
-                spdlog::error("[错误] 参数 --sender_crop_width 的取值无效");
+                spdlog::error("[错误] --sender_crop_width 取值无效");
                 return ParseResult::kError;
             }
             config.sender_crop_width_overridden = true;
@@ -429,7 +429,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_crop_height))
             {
-                spdlog::error("[错误] 参数 --sender_crop_height 的取值无效");
+                spdlog::error("[错误] --sender_crop_height 取值无效");
                 return ParseResult::kError;
             }
             config.sender_crop_height_overridden = true;
@@ -439,7 +439,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_offset_x))
             {
-                spdlog::error("[错误] 参数 --sender_offset_x 的取值无效");
+                spdlog::error("[错误] --sender_offset_x 取值无效");
                 return ParseResult::kError;
             }
             config.sender_offset_x_overridden = true;
@@ -449,7 +449,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_offset_y))
             {
-                spdlog::error("[错误] 参数 --sender_offset_y 的取值无效");
+                spdlog::error("[错误] --sender_offset_y 取值无效");
                 return ParseResult::kError;
             }
             config.sender_offset_y_overridden = true;
@@ -459,7 +459,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadStringOption(argc, argv, i, config.sender_bitrate))
             {
-                spdlog::error("[错误] 参数 --sender_bitrate 的取值无效");
+                spdlog::error("[错误] --sender_bitrate 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -468,7 +468,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadStringOption(argc, argv, i, config.sender_maxrate))
             {
-                spdlog::error("[错误] 参数 --sender_maxrate 的取值无效");
+                spdlog::error("[错误] --sender_maxrate 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -477,7 +477,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadStringOption(argc, argv, i, config.sender_bufsize))
             {
-                spdlog::error("[错误] 参数 --sender_bufsize 的取值无效");
+                spdlog::error("[错误] --sender_bufsize 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -486,7 +486,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_gop))
             {
-                spdlog::error("[错误] 参数 --sender_gop 的取值无效");
+                spdlog::error("[错误] --sender_gop 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -495,7 +495,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_pkt_size))
             {
-                spdlog::error("[错误] 参数 --sender_pkt_size 的取值无效");
+                spdlog::error("[错误] --sender_pkt_size 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -504,7 +504,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.sender_udp_buffer_size))
             {
-                spdlog::error("[错误] 参数 --sender_udp_buffer_size 的取值无效");
+                spdlog::error("[错误] --sender_udp_buffer_size 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -513,7 +513,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadDoubleOption(argc, argv, i, config.aim_gain))
             {
-                spdlog::error("[错误] 参数 --aim_gain 的取值无效");
+                spdlog::error("[错误] --aim_gain 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -522,7 +522,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadDoubleOption(argc, argv, i, config.aim_max_step_px))
             {
-                spdlog::error("[错误] 参数 --aim_max_step_px 的取值无效");
+                spdlog::error("[错误] --aim_max_step_px 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -531,7 +531,7 @@ ParseResult ParseArguments(const int argc, char* argv[], Config& config)
         {
             if (!ReadIntOption(argc, argv, i, config.aim_update_interval_ms))
             {
-                spdlog::error("[错误] 参数 --aim_update_interval_ms 的取值无效");
+                spdlog::error("[错误] --aim_update_interval_ms 取值无效");
                 return ParseResult::kError;
             }
             continue;
@@ -566,32 +566,32 @@ int main(int argc, char* argv[])
 
     if (config.listen_port <= 0 || config.listen_port > 65535)
     {
-        spdlog::error("[错误] listen_port 必须在 1 到 65535 之间");
+        spdlog::error("[错误] listen_port 必须在 [1, 65535] 范围内");
         return 1;
     }
     if (config.screen_width <= 0 || config.screen_height <= 0 ||
         config.roi_width <= 0 || config.roi_height <= 0)
     {
-        spdlog::error("[错误] screen 和 roi 的宽高必须为正数");
+        spdlog::error("[错误] screen 和 ROI 尺寸必须为正数");
         return 1;
     }
     if (config.enable_sender &&
         (config.sender_output_port <= 0 || config.sender_output_port > 65535))
     {
-        spdlog::error("[错误] sender_output_port 必须在 1 到 65535 之间");
+        spdlog::error("[错误] sender_output_port 必须在 [1, 65535] 范围内");
         return 1;
     }
     if (config.enable_sender &&
         (config.sender_crop_width <= 0 || config.sender_crop_height <= 0 ||
          config.sender_framerate <= 0))
     {
-        spdlog::error("[错误] sender 裁剪尺寸和帧率必须为正数");
+        spdlog::error("[错误] sender crop 尺寸和 framerate 必须为正数");
         return 1;
     }
     if (config.enable_clock_offset &&
         (config.clock_offset_port <= 0 || config.clock_offset_port > 65535))
     {
-        spdlog::error("[错误] clock_offset_port 必须在 1 到 65535 之间");
+        spdlog::error("[错误] clock_offset_port 必须在 [1, 65535] 范围内");
         return 1;
     }
     if (config.sender_pts_per_second <= 0.0)

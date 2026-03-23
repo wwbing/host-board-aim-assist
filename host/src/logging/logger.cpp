@@ -64,7 +64,7 @@ std::string FormatWin32Error(const std::wstring& action, const DWORD error_code)
         0,
         nullptr);
 
-    std::string message = WideToUtf8(action) + "失败，错误码=" + std::to_string(error_code);
+    std::string message = WideToUtf8(action) + " 失败, error_code=" + std::to_string(error_code);
     if (message_length > 0 && message_buffer != nullptr)
     {
         std::wstring windows_message(message_buffer, message_length);
@@ -73,7 +73,7 @@ std::string FormatWin32Error(const std::wstring& action, const DWORD error_code)
         {
             windows_message.pop_back();
         }
-        message += "，系统信息=" + WideToUtf8(windows_message);
+        message += ", system_message=" + WideToUtf8(windows_message);
     }
 
     if (message_buffer != nullptr)
@@ -86,7 +86,7 @@ std::string FormatWin32Error(const std::wstring& action, const DWORD error_code)
 
 std::string FormatSocketError(const std::string& action, const int error_code)
 {
-    return action + "失败，WSA 错误码=" + std::to_string(error_code);
+    return action + " 失败, WSA_error=" + std::to_string(error_code);
 }
 
 std::string FormatLastSocketError(const std::string& action)

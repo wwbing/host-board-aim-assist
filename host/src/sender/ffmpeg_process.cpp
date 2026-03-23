@@ -20,13 +20,13 @@ bool CreateChildPipe(HANDLE& read_handle, HANDLE& write_handle, std::string& err
 
     if (!CreatePipe(&read_handle, &write_handle, &security_attributes, 0))
     {
-        error_message = FormatWindowsErrorMessage(L"创建 ffmpeg 子进程管道(CreatePipe)");
+        error_message = FormatWindowsErrorMessage(L"创建 ffmpeg child pipe (CreatePipe)");
         return false;
     }
 
     if (!SetHandleInformation(read_handle, HANDLE_FLAG_INHERIT, 0))
     {
-        error_message = FormatWindowsErrorMessage(L"设置管道句柄继承属性(SetHandleInformation)");
+        error_message = FormatWindowsErrorMessage(L"设置 pipe handle inheritance (SetHandleInformation)");
         FfmpegProcess::CloseHandleIfValid(read_handle);
         FfmpegProcess::CloseHandleIfValid(write_handle);
         return false;
@@ -52,7 +52,7 @@ HANDLE OpenNullInputHandle(std::string& error_message)
 
     if (null_handle == INVALID_HANDLE_VALUE)
     {
-        error_message = FormatWindowsErrorMessage(L"打开空输入句柄(CreateFileW)");
+        error_message = FormatWindowsErrorMessage(L"打开 null input handle (CreateFileW)");
         return nullptr;
     }
 
@@ -136,7 +136,7 @@ bool FfmpegProcess::Start(const std::wstring& command_line, std::string& error_m
 
     if (!created)
     {
-        last_error_ = FormatWindowsErrorMessage(L"启动 ffmpeg 进程(CreateProcessW)");
+        last_error_ = FormatWindowsErrorMessage(L"启动 ffmpeg process (CreateProcessW)");
         error_message = last_error_;
         CleanupHandles();
         return false;
@@ -162,10 +162,10 @@ void FfmpegProcess::Stop(const DWORD graceful_timeout_ms)
     {
         if (!GenerateConsoleCtrlEvent(CTRL_BREAK_EVENT, process_info_.dwProcessId))
         {
-            last_error_ = FormatWindowsErrorMessage(L"向 ffmpeg 发送 CTRL_BREAK(GenerateConsoleCtrlEvent)");
+            last_error_ = FormatWindowsErrorMessage(L"向 ffmpeg 发送 CTRL_BREAK (GenerateConsoleCtrlEvent)");
             if (!TerminateProcess(process_info_.hProcess, 1))
             {
-                last_error_ = FormatWindowsErrorMessage(L"强制结束 ffmpeg 进程(TerminateProcess)");
+                last_error_ = FormatWindowsErrorMessage(L"终止 ffmpeg process (TerminateProcess)");
             }
             else
             {
@@ -179,7 +179,7 @@ void FfmpegProcess::Stop(const DWORD graceful_timeout_ms)
             {
                 if (!TerminateProcess(process_info_.hProcess, 1))
                 {
-                    last_error_ = FormatWindowsErrorMessage(L"强制结束 ffmpeg 进程(TerminateProcess)");
+                    last_error_ = FormatWindowsErrorMessage(L"终止 ffmpeg process (TerminateProcess)");
                 }
                 else
                 {
@@ -188,10 +188,10 @@ void FfmpegProcess::Stop(const DWORD graceful_timeout_ms)
             }
             else if (wait_result == WAIT_FAILED)
             {
-                last_error_ = FormatWindowsErrorMessage(L"等待 ffmpeg 进程退出(WaitForSingleObject)");
+                last_error_ = FormatWindowsErrorMessage(L"等待 ffmpeg 退出 (WaitForSingleObject)");
                 if (!TerminateProcess(process_info_.hProcess, 1))
                 {
-                    last_error_ = FormatWindowsErrorMessage(L"强制结束 ffmpeg 进程(TerminateProcess)");
+                    last_error_ = FormatWindowsErrorMessage(L"终止 ffmpeg process (TerminateProcess)");
                 }
                 else
                 {
@@ -224,7 +224,7 @@ bool FfmpegProcess::IsRunning()
         return false;
     }
 
-    last_error_ = FormatWindowsErrorMessage(L"查询 ffmpeg 进程状态(WaitForSingleObject)");
+        last_error_ = FormatWindowsErrorMessage(L"查询 ffmpeg process 状态 (WaitForSingleObject)");
     return false;
 }
 
@@ -312,6 +312,6 @@ void FfmpegProcess::UpdateExitCode()
     }
     else
     {
-        last_error_ = FormatWindowsErrorMessage(L"读取 ffmpeg 退出码(GetExitCodeProcess)");
+        last_error_ = FormatWindowsErrorMessage(L"读取 ffmpeg exit code (GetExitCodeProcess)");
     }
 }

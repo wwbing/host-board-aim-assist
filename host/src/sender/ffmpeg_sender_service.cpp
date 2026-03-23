@@ -70,7 +70,7 @@ bool FfmpegSenderService::IsRunning()
     if (!running && last_error_.empty() && !command_line_.empty())
     {
         std::ostringstream oss;
-        oss << "ffmpeg 已退出，退出码=" << process_.ExitCode();
+        oss << "ffmpeg 已退出, exit_code=" << process_.ExitCode();
         last_error_ = oss.str();
     }
     return running;
