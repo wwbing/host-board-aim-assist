@@ -1,1 +1,4 @@
 build-cmake-nmake
+build
+rknn_model_zoo-2.3.2
+rknn-toolkit2-2.3.2
