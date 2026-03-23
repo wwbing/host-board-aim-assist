@@ -66,7 +66,7 @@ infer_v6_cpp
 ## 构建方式
 
 ```bash
-cd /home/orangepi/code/rknn_infer/infer_v6_cpp
+cd /home/orangepi/code/host-board-aim-assist/board/rknn_infer/infer_v6_cpp
 cmake -S . -B build
 cmake --build build -j4
 ```
@@ -80,23 +80,23 @@ cmake --build build -j4
 批量跑 `rknn_infer/images`：
 
 ```bash
-cd /home/orangepi/code/rknn_infer/infer_v6_cpp/build
+cd /home/orangepi/code/host-board-aim-assist/board/rknn_infer/infer_v6_cpp/build
 ./infer_v6_cpp_demo
 ```
 
 只跑单张图片：
 
 ```bash
-./infer_v6_cpp_demo --image /home/orangepi/code/rknn_infer/images/1.jpg
+./infer_v6_cpp_demo --image /home/orangepi/code/host-board-aim-assist/board/rknn_infer/images/1.jpg
 ```
 
 指定模型、图片目录和输出目录：
 
 ```bash
 ./infer_v6_cpp_demo \
-  --model /home/orangepi/code/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn \
-  --image_dir /home/orangepi/code/rknn_infer/images \
-  --output_dir /home/orangepi/code/rknn_infer/infer_v6_cpp/result
+  --model /home/orangepi/code/host-board-aim-assist/board/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn \
+  --image_dir /home/orangepi/code/host-board-aim-assist/board/rknn_infer/images \
+  --output_dir /home/orangepi/code/host-board-aim-assist/board/rknn_infer/infer_v6_cpp/result
 ```
 
 ## 运行输出

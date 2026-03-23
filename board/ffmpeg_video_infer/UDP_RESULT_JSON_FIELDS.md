@@ -521,7 +521,7 @@ clock offset server 用来做：
 默认运行：
 
 ```bash
-cd /home/orangepi/code/ffmpeg_video_infer
+cd /home/orangepi/code/host-board-aim-assist/board/ffmpeg_video_infer
 ./build/ffmpeg_video_infer
 ```
 
@@ -601,8 +601,8 @@ cd /home/orangepi/code/ffmpeg_video_infer
 
 ```bash
 ./build/ffmpeg_video_infer \
-  --model /home/orangepi/code/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn \
-  --output_dir /home/orangepi/code/ffmpeg_video_infer/result
+  --model /home/orangepi/code/host-board-aim-assist/board/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn \
+  --output_dir /home/orangepi/code/host-board-aim-assist/board/ffmpeg_video_infer/result
 ```
 
 指定输入流地址：
@@ -634,9 +634,9 @@ cd /home/orangepi/code/ffmpeg_video_infer
 
 | 项目 | 默认值 |
 | --- | --- |
-| `model_path` | `/home/orangepi/code/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn` |
-| `output_dir` | `/home/orangepi/code/ffmpeg_video_infer/result` |
-| `result_json_path` | `/home/orangepi/code/ffmpeg_video_infer/result/result_udp_packets.jsonl` |
+| `model_path` | `/home/orangepi/code/host-board-aim-assist/board/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn` |
+| `output_dir` | `/home/orangepi/code/host-board-aim-assist/board/ffmpeg_video_infer/result` |
+| `result_json_path` | `/home/orangepi/code/host-board-aim-assist/board/ffmpeg_video_infer/result/result_udp_packets.jsonl` |
 | `enable_display` | `false` |
 | `save_result` | `false` |
 | `save_result_json` | `false` |

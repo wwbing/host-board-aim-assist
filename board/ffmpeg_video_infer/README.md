@@ -171,7 +171,7 @@ ffmpeg_video_infer_lib
 ## 7. 构建方法
 
 ```bash
-cd /home/orangepi/code/ffmpeg_video_infer
+cd /home/orangepi/code/host-board-aim-assist/board/ffmpeg_video_infer
 cmake -S . -B build
 cmake --build build -j4
 ```
@@ -186,7 +186,7 @@ cmake --build build -j4
 ### 8.1 默认运行
 
 ```bash
-cd /home/orangepi/code/ffmpeg_video_infer/build
+cd /home/orangepi/code/host-board-aim-assist/board/ffmpeg_video_infer/build
 ./ffmpeg_video_infer
 ```
 
@@ -236,8 +236,8 @@ cd /home/orangepi/code/ffmpeg_video_infer/build
 
 ```bash
 ./ffmpeg_video_infer \
-  --model /home/orangepi/code/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn \
-  --output_dir /home/orangepi/code/ffmpeg_video_infer/result
+  --model /home/orangepi/code/host-board-aim-assist/board/rknn_infer/model/v6n_cs2_head_rk3588_i8_normal_layer_channel.rknn \
+  --output_dir /home/orangepi/code/host-board-aim-assist/board/ffmpeg_video_infer/result
 ```
 
 指定输入流 URL：
